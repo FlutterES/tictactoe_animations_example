@@ -7,97 +7,51 @@ enum MarkerType { CIRCLE, CROSS, NONE }
 class Marker extends StatelessWidget {
   final bool enabled;
   final MarkerType type;
+  final Gradient gradient;
 
-  const Marker({Key key, @required this.type, this.enabled = false})
+  const Marker(
+      {Key key, @required this.type, this.gradient, this.enabled = false})
       : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return type == MarkerType.CROSS
-        ? MarkerCross(enabled: enabled)
-        : MarkerCircle(enabled: enabled);
-  }
-}
-
-class MarkerCircle extends StatelessWidget {
-  final bool enabled;
-
-  const MarkerCircle({Key key, this.enabled}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: enabled ? 1 : 0),
-      duration: Duration(seconds: 1),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutQuad,
       builder: (ctx, clipPath, child) => CustomPaint(
-        painter: CirclePainter(clipPath: clipPath),
+        painter: MarkerPainter(
+          type: type,
+          clipPath: clipPath,
+          gradient: gradient,
+        ),
       ),
     );
   }
 }
 
-class CirclePainter extends CustomPainter {
+class MarkerPainter extends CustomPainter {
+  final MarkerType type;
   final double clipPath;
+  final Gradient gradient;
 
-  CirclePainter({this.clipPath = 1.0});
+  MarkerPainter({this.gradient, this.type, this.clipPath});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    var paint = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 4.0
-      ..style = PaintingStyle.stroke;
-
-    var path = Path()..addArc(Offset.zero & size, 0, radians(360) * clipPath);
-
+  void paintCircle(Canvas canvas, Size size, Paint paint, Path path) {
+    path.addArc(Offset.zero & size, 0, radians(360) * clipPath);
     canvas.drawPath(path, paint);
   }
 
-  @override
-  bool shouldRepaint(CirclePainter oldDelegate) {
-    return oldDelegate.clipPath != clipPath;
-  }
-}
-
-class MarkerCross extends StatelessWidget {
-  final bool enabled;
-
-  const MarkerCross({Key key, this.enabled = false}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: enabled ? 1 : 0),
-      duration: Duration(seconds: 1),
-      builder: (ctx, clipPath, child) => CustomPaint(
-        painter: CrossPainter(clipPath: clipPath),
-      ),
-    );
-  }
-}
-
-class CrossPainter extends CustomPainter {
-  final double clipPath;
-
-  CrossPainter({this.clipPath});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    var path = Path();
-
-    var paint = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 4.0
-      ..style = PaintingStyle.stroke;
-
+  void paintCross(Canvas canvas, Size size, Paint paint, Path path) {
     var currClip = clipPath * 2;
 
-    path
-      ..lineTo(
-          size.width * min(currClip, 1.0), size.height * min(currClip, 1.0));
+    path.lineTo(
+      size.width * min(currClip, 1.0),
+      size.height * min(currClip, 1.0),
+    );
 
     if (currClip > 1.0) {
-      currClip -= 1;
+      currClip--;
 
       path
         ..relativeMoveTo(-size.width, 0)
@@ -108,7 +62,33 @@ class CrossPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return true;
+  void paint(Canvas canvas, Size size) {
+    var paint = Paint()
+      ..color = Colors.red
+      ..strokeWidth = 4.0
+      ..style = PaintingStyle.stroke;
+
+    if (gradient != null) {
+      paint.shader = gradient.createShader(Offset.zero & size);
+    }
+
+    var path = Path();
+
+    switch (type) {
+      case MarkerType.CROSS:
+        paintCross(canvas, size, paint, path);
+        return;
+
+      case MarkerType.CIRCLE:
+        paintCircle(canvas, size, paint, path);
+        return;
+
+      default:
+        return;
+    }
   }
+
+  @override
+  bool shouldRepaint(MarkerPainter oldDelegate) =>
+      oldDelegate.type != type || oldDelegate.clipPath != clipPath;
 }
